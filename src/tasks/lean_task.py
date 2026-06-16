@@ -1,5 +1,9 @@
 import re
+import shutil
+import subprocess
+import tempfile
 from collections import defaultdict
+from pathlib import Path
 
 from datasets import Dataset
 
@@ -19,6 +23,7 @@ class LeanMiniF2FTask(TaskEnv):
 
     def __init__(self):
         self._proofs: dict[str, str] | None = None
+        self._statements: dict[str, str] | None = None
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
@@ -35,6 +40,7 @@ class LeanMiniF2FTask(TaskEnv):
 
         data = []
         proofs = {}
+        statements = {}
         for name, rows in grouped.items():
             rows.sort(key=lambda r: r.get("STATE", ""))
             first = rows[0]
@@ -47,8 +53,10 @@ class LeanMiniF2FTask(TaskEnv):
             })
             data.append({"prompt": prompt, "task_name": "lean_minif2f"})
             proofs[prompt] = proof
+            statements[prompt] = statement
 
         self._proofs = proofs
+        self._statements = statements
         return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
@@ -58,17 +66,46 @@ class LeanMiniF2FTask(TaskEnv):
             state=example.get("state", ""),
         )
 
+    def _lean_available(self) -> bool:
+        return shutil.which("lean") is not None
+
+    def _verify_lean(self, statement: str, proof: str) -> bool:
+        source = f"{statement} := by\n{proof}"
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", delete=False,
+        ) as f:
+            f.write(source)
+            tmp_path = f.name
+
+        try:
+            result = subprocess.run(
+                ["lean", tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
     def compute_reward(self, prompt: str, completion: str) -> float:
         if self._proofs is None:
             self.load_dataset()
 
         expected = self._proofs.get(prompt)
+        statement = self._statements.get(prompt)
         if expected is None:
             return 0.0
 
         predicted = completion.strip()
         if not predicted:
             return 0.0
+
+        if self._lean_available():
+            if self._verify_lean(statement, predicted):
+                return 1.0
 
         pred_norm = " ".join(predicted.lower().split())
         exp_norm = " ".join(expected.lower().split())
