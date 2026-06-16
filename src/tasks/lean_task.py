@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 
 from datasets import Dataset
 
@@ -8,57 +9,69 @@ from src.task_env import TaskEnv, TaskRegistry
 @TaskRegistry.register("lean_minif2f")
 class LeanMiniF2FTask(TaskEnv):
     PROMPT_TEMPLATE = (
-        "Predict the next tactic for this Lean 4 proof. Output only the "
-        "tactic, nothing else.\n\n"
-        "Theorem: {full_name}\n\n"
-        "Current state:\n{state}\n\n"
-        "Tactic:"
+        "Prove the following theorem in Lean 4. Output the complete proof "
+        "as a sequence of tactics, one per line. Do not include any "
+        "explanation.\n\n"
+        "Theorem ({name}):\n{statement}\n\n"
+        "Initial proof state:\n{state}\n\n"
+        "Proof:"
     )
+
+    def __init__(self):
+        self._proofs: dict[str, str] | None = None
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
-        ds = load_dataset("cat-searcher/leandojo-benchmark-4-random", split="test")
+        ds = load_dataset(
+            "charliemeyer2000/leandojo_benchmark_lean4_17_0",
+            split="validation",
+        )
 
-        def _format(row):
-            row["prompt"] = self.get_prompt(row)
-            row["task_name"] = "lean_minif2f"
-            return row
+        ds = ds.filter(lambda x: x["PROVABLE"] == 1)
 
-        ds = ds.map(_format)
-        return ds
+        grouped = defaultdict(list)
+        for row in ds:
+            grouped[row["NAME"]].append(row)
+
+        data = []
+        proofs = {}
+        for name, rows in grouped.items():
+            rows.sort(key=lambda r: r.get("STATE", ""))
+            first = rows[0]
+            statement = first["STATEMENT"]
+            state = first["STATE"]
+            proof = "\n".join(r["TACTIC"].strip() for r in rows)
+
+            prompt = self.get_prompt({
+                "name": name, "statement": statement, "state": state,
+            })
+            data.append({"prompt": prompt, "task_name": "lean_minif2f"})
+            proofs[prompt] = proof
+
+        self._proofs = proofs
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(
-            full_name=example.get("full_name", ""),
+            name=example.get("name", ""),
+            statement=example.get("statement", ""),
             state=example.get("state", ""),
         )
 
-    @staticmethod
-    def _strip_tags(text: str) -> str:
-        return re.sub(r"</?a>", "", text).strip()
-
     def compute_reward(self, prompt: str, completion: str) -> float:
-        ds = self.load_dataset()
-        for row in ds:
-            if row["prompt"] == prompt:
-                expected = self._strip_tags(row.get("tactic", ""))
-                predicted = completion.strip()
-                if not predicted or not expected:
-                    return 0.0
-                if predicted.lower() == expected.lower():
-                    return 1.0
-                if "".join(predicted.split()) == "".join(expected.split()):
-                    return 1.0
-                return 0.0
-        return 0.0
+        if self._proofs is None:
+            self.load_dataset()
 
-    def _extract_lean_code(self, text: str) -> str | None:
-        patterns = [
-            r"```lean\n(.*?)```",
-            r"```\n(.*?)```",
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.DOTALL)
-            if matches:
-                return matches[0].strip()
-        return text.strip()
+        expected = self._proofs.get(prompt)
+        if expected is None:
+            return 0.0
+
+        predicted = completion.strip()
+        if not predicted:
+            return 0.0
+
+        pred_norm = " ".join(predicted.lower().split())
+        exp_norm = " ".join(expected.lower().split())
+        if pred_norm == exp_norm:
+            return 1.0
+        return 0.0
