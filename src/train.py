@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,6 +45,13 @@ def main():
 
     dataset = build_mixed_dataset(config.task_sampling)
 
+    checkpoint_dir = config.training.output_dir
+    resume = any(
+        (Path(checkpoint_dir) / d / "trainer_state.json").exists()
+        for d in os.listdir(checkpoint_dir)
+        if d.startswith("checkpoint-") and os.path.isdir(os.path.join(checkpoint_dir, d))
+    )
+
     grpo_config = GRPOConfig(
         output_dir=config.training.output_dir,
         per_device_train_batch_size=config.training.per_device_train_batch_size,
@@ -57,6 +65,8 @@ def main():
         max_steps=config.training.max_steps,
         logging_steps=config.training.logging_steps,
         save_steps=config.training.save_steps,
+        save_strategy="steps",
+        save_total_limit=3,
         bf16=config.training.bf16,
         gradient_checkpointing=config.training.gradient_checkpointing,
         beta=config.training.beta,
@@ -73,7 +83,7 @@ def main():
         train_dataset=dataset,
     )
 
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume or None)
 
     save_model(model, tokenizer, os.path.join(config.training.output_dir, "final"))
 
