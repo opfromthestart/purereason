@@ -1,0 +1,80 @@
+import os
+import sys
+import torch
+
+from trl import GRPOConfig, GRPOTrainer
+
+from src.config import Config
+from src.model import load_model_and_tokenizer, save_model
+from src.dataset import build_mixed_dataset
+from src.task_env import TaskRegistry
+
+
+def create_reward_fn():
+    def reward_fn(prompts, completions, task_name=None, **kwargs):
+        rewards = []
+        for i, (prompt, completion) in enumerate(zip(prompts, completions)):
+            try:
+                task = TaskRegistry.get(task_name[i])
+                r = task.compute_reward(prompt, completion)
+                rewards.append(r)
+            except Exception as e:
+                print(f"[WARN] Reward computation failed: {e}")
+                rewards.append(0.0)
+        return rewards
+    return reward_fn
+
+
+def main():
+    config = Config()
+
+    import src.tasks.math_task        # noqa: triggers @TaskRegistry.register
+    import src.tasks.code_task        # noqa
+    import src.tasks.logic_task       # noqa
+    import src.tasks.sokoban_task     # noqa
+    import src.tasks.spreadsheet_task # noqa
+    import src.tasks.lean_task        # noqa
+
+    os.makedirs(config.training.output_dir, exist_ok=True)
+
+    model, tokenizer = load_model_and_tokenizer(config.model)
+
+    dataset = build_mixed_dataset(config.task_sampling)
+
+    grpo_config = GRPOConfig(
+        output_dir=config.training.output_dir,
+        per_device_train_batch_size=config.training.per_device_train_batch_size,
+        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        num_generations=config.training.num_generations_per_prompt,
+        max_prompt_length=config.training.max_prompt_length,
+        max_completion_length=config.training.max_completion_length,
+        temperature=config.training.temperature,
+        learning_rate=config.training.learning_rate,
+        lr_scheduler_type=config.training.lr_scheduler_type,
+        warmup_steps=config.training.warmup_steps,
+        max_steps=config.training.max_steps,
+        logging_steps=config.training.logging_steps,
+        save_steps=config.training.save_steps,
+        bf16=config.training.bf16,
+        gradient_checkpointing=config.training.gradient_checkpointing,
+        beta=config.training.beta,
+        seed=config.training.seed,
+        report_to="wandb",
+        remove_unused_columns=False,
+    )
+
+    trainer = GRPOTrainer(
+        model=model,
+        processing_class=tokenizer,
+        reward_funcs=create_reward_fn(),
+        args=grpo_config,
+        train_dataset=dataset,
+    )
+
+    trainer.train()
+
+    save_model(model, tokenizer, os.path.join(config.training.output_dir, "final"))
+
+
+if __name__ == "__main__":
+    main()
