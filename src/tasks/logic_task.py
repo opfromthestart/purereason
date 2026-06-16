@@ -10,24 +10,32 @@ class PRONTOQATask(TaskEnv):
     PROMPT_TEMPLATE = (
         "Given the following facts, answer the question by reasoning step by "
         "step. Put your final answer on a new line after 'Answer:'.\n\n"
-        "Facts: {context}\n\nQuestion: {question}"
+        "Facts: {context}\n\nQuestion: {question}\n\nOptions: {options}"
     )
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
-        ds = load_dataset("ashen/PRONTOQA", split="train")
-        required_cols = ["context", "question", "answer"]
-        ds = ds.select_columns([c for c in required_cols if c in ds.column_names])
-        ds = ds.map(
-            lambda x: {"prompt": self.get_prompt(x), "task_name": "prontoqa"},
-            remove_columns=ds.column_names,
-        )
+        ds = load_dataset("renma/ProntoQA", split="validation")
+
+        def _resolve_answer(row):
+            row["prompt"] = self.get_prompt(row)
+            row["task_name"] = "prontoqa"
+            letter = row.get("answer", "").strip().upper()
+            options = row.get("options", [])
+            idx = ord(letter) - ord("A") if letter else -1
+            row["answer_text"] = options[idx] if 0 <= idx < len(options) else letter
+            return row
+
+        ds = ds.map(_resolve_answer)
         return ds
 
     def get_prompt(self, example: dict) -> str:
+        options = example.get("options", [])
+        options_str = "\n".join(options) if options else ""
         return self.PROMPT_TEMPLATE.format(
             context=example.get("context", ""),
             question=example.get("question", ""),
+            options=options_str,
         )
 
     def compute_reward(self, prompt: str, completion: str) -> float:
@@ -43,7 +51,7 @@ class PRONTOQATask(TaskEnv):
         patterns = [
             r"Answer:\s*(.*?)$",
             r"answer is\s*(.*?)[\.\n]",
-            r"^(true|false|yes|no)$",
+            r"^(true|false|yes|no|A|B)$",
         ]
         for pattern in patterns:
             matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
@@ -52,7 +60,7 @@ class PRONTOQATask(TaskEnv):
         lines = text.strip().split("\n")
         for line in reversed(lines):
             stripped = line.strip()
-            if stripped.lower() in ("true", "false", "yes", "no"):
+            if stripped.lower() in ("true", "false", "yes", "no", "a", "b"):
                 return stripped
         return None
 
@@ -60,10 +68,10 @@ class PRONTOQATask(TaskEnv):
         ds = load_dataset_for_prontoqa()
         for row in ds:
             if self.get_prompt(row) == prompt:
-                return row.get("answer", "").strip()
+                return row.get("answer_text", "").strip()
         return None
 
 
 def load_dataset_for_prontoqa():
     from datasets import load_dataset
-    return load_dataset("ashen/PRONTOQA", split="train")
+    return load_dataset("renma/ProntoQA", split="validation")
