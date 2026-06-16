@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ModelConfig:
-    base_model: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     fallback_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     load_in_4bit: bool = True
     bnb_4bit_compute_dtype: str = "bfloat16"
