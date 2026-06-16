@@ -9,10 +9,9 @@ from datasets import Dataset
 from src.task_env import TaskEnv, TaskRegistry
 
 
-def _run_tests(code: str, test_code: str) -> tuple[int, int]:
-    full_code = code + "\n\n" + test_code
+def _run_code(code: str) -> tuple[int, int]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(full_code)
+        f.write(code)
         tmp_path = f.name
 
     try:
@@ -73,17 +72,17 @@ class MBPPTask(TaskEnv):
         ds = load_dataset_for_mbpp()
         for row in ds:
             if self.get_prompt(row) == prompt:
-                test_list = row.get("test_list", row.get("test_imports", []))
+                test_list = row.get("test_list", [])
                 if isinstance(test_list, str):
                     test_list = [test_list]
-                passed = 0
-                total = len(test_list) if test_list else 1
                 if not test_list:
                     return 0.0
+                passed = 0
                 for test in test_list:
-                    p, _ = _run_tests(code, test)
+                    full = code + "\n\n" + test
+                    p, _ = _run_code(full)
                     passed += p
-                return passed / total
+                return passed / len(test_list)
         return 0.0
 
 
@@ -108,22 +107,19 @@ class HumanEvalTask(TaskEnv):
         return self.PROMPT_TEMPLATE.format(prompt=example["prompt"])
 
     def compute_reward(self, prompt: str, completion: str) -> float:
-        code = _extract_code_block(completion)
-        full_code = prompt + code
+        body = _extract_code_block(completion)
+        body_lines = body.strip().split("\n")
+        indented = "\n".join("    " + line.lstrip() for line in body_lines)
+        full_func = prompt + "\n" + indented
+
         ds = load_dataset_for_humaneval()
         for row in ds:
             if row["prompt"] == prompt:
                 test_code = row.get("test", "")
                 if not test_code:
                     return 0.0
-                inner_test = test_code.replace(
-                    f"candidate({row.get('entry_point', '')})",
-                    full_code,
-                )
-                if "def check(" in inner_test:
-                    passed, total = _run_tests(full_code, inner_test)
-                    return passed / total if total > 0 else 0.0
-                passed, total = _run_tests(full_code, inner_test)
+                full_code = full_func + "\n\n" + test_code
+                passed, total = _run_code(full_code)
                 return passed / total if total > 0 else 0.0
         return 0.0
 
