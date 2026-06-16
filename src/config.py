@@ -21,10 +21,10 @@ class ModelConfig:
 class TrainingConfig:
     output_dir: str = "./output"
     per_device_train_batch_size: int = 1
-    gradient_accumulation_steps: int = 4
-    num_generations_per_prompt: int = 4
-    max_prompt_length: int = 512
-    max_completion_length: int = 2048
+    gradient_accumulation_steps: int = 2
+    num_generations_per_prompt: int = 2
+    max_prompt_length: int = 256
+    max_completion_length: int = 256
     temperature: float = 0.8
     learning_rate: float = 2e-4
     lr_scheduler_type: str = "cosine"
