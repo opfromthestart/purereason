@@ -3,6 +3,7 @@ import random
 import shutil
 import subprocess
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 from datasets import Dataset
@@ -10,7 +11,10 @@ from datasets import Dataset
 from src.task_env import TaskEnv, TaskRegistry
 
 
-THEOREMS = [
+MATHLIB_PROJECT = "/tmp/lean_verify"
+MATHLIB_MAX_THEOREMS = 500
+
+CORE_THEOREMS = [
     ("add_comm", "theorem add_comm (a b : Nat) : a + b = b + a := by", "omega"),
     ("add_assoc", "theorem add_assoc (a b c : Nat) : (a + b) + c = a + (b + c) := by", "omega"),
     ("add_zero", "theorem add_zero (a : Nat) : a + 0 = a := by", "simp"),
@@ -70,18 +74,65 @@ class LeanMiniF2FTask(TaskEnv):
         "```lean\n{statement}\n```"
     )
 
+    def __init__(self):
+        self._core_lookup: dict[str, str] = {}
+
     def load_dataset(self) -> Dataset:
         data = []
-        for name, statement, _known_proof in THEOREMS:
-            prompt = self.get_prompt({"name": name, "statement": statement})
+
+        for name, statement, _ in CORE_THEOREMS:
+            prompt = self.get_prompt({"statement": statement})
+            self._core_lookup[prompt] = statement
             data.append({"prompt": prompt, "task_name": "lean_minif2f"})
+
+        mathlib_data = self._load_mathlib_theorems()
+        data.extend(mathlib_data)
+
         return Dataset.from_list(data)
+
+    def _load_mathlib_theorems(self) -> list[dict]:
+        if not self._mathlib_available():
+            print("[WARN] Mathlib project not found at "
+                  f"{MATHLIB_PROJECT}. Run setup to install.")
+            return []
+
+        from datasets import load_dataset
+        ds = load_dataset(
+            "charliemeyer2000/leandojo_benchmark_lean4_17_0",
+            split="validation",
+        )
+        ds = ds.filter(lambda x: x["PROVABLE"] == 1)
+
+        grouped = defaultdict(list)
+        for row in ds:
+            grouped[row["NAME"]].append(row)
+
+        theorems = []
+        for name, rows in grouped.items():
+            rows.sort(key=lambda r: r.get("STATE", ""))
+            first = rows[0]
+            theorems.append((name, first["STATEMENT"]))
+
+        random.Random(42).shuffle(theorems)
+        theorems = theorems[:MATHLIB_MAX_THEOREMS]
+
+        result = []
+        for name, statement in theorems:
+            prompt = self.get_prompt({"statement": statement})
+            result.append({"prompt": prompt, "task_name": "lean_minif2f"})
+            self._core_lookup[prompt] = statement
+
+        print(f"[INFO] Loaded {len(result)} mathlib theorems")
+        return result
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(statement=example["statement"])
 
     def _lean_available(self) -> bool:
         return shutil.which("lean") is not None
+
+    def _mathlib_available(self) -> bool:
+        return Path(MATHLIB_PROJECT, ".lake").exists()
 
     @staticmethod
     def _is_trivial(proof: str) -> bool:
@@ -92,30 +143,36 @@ class LeanMiniF2FTask(TaskEnv):
             return True
         return False
 
-    def _verify_lean(self, statement: str, proof: str) -> bool:
+    def _verify_lean(self, statement: str, proof: str, use_mathlib: bool = False) -> bool:
         if self._is_trivial(proof):
             return False
 
         uid = hashlib.sha1(statement.encode()).hexdigest()[:8]
-        source = statement.replace(
-            "theorem ", f"theorem thm_{uid}_", 1,
-        )
-        source = f"{source}\n  {proof}"
+        safe_stmt = statement.replace("theorem ", f"theorem thm_{uid}_", 1)
+
+        if use_mathlib:
+            source = f"import Mathlib\n\n{safe_stmt} := by\n  {proof}"
+        else:
+            source = f"{safe_stmt}\n  {proof}"
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".lean", delete=False,
-            dir="/tmp",
+            mode="w", suffix=".lean", delete=False, dir="/tmp",
         ) as f:
             f.write(source)
             tmp_path = f.name
 
         try:
-            result = subprocess.run(
-                ["lean", tmp_path],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            if use_mathlib and self._mathlib_available():
+                result = subprocess.run(
+                    ["lake", "env", "lean", tmp_path],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=MATHLIB_PROJECT,
+                )
+            else:
+                result = subprocess.run(
+                    ["lean", tmp_path],
+                    capture_output=True, text=True, timeout=10,
+                )
             return result.returncode == 0
         except subprocess.TimeoutExpired:
             return False
@@ -127,12 +184,16 @@ class LeanMiniF2FTask(TaskEnv):
         if not predicted:
             return 0.0
 
-        for name, statement, _ in THEOREMS:
-            candidate = self.get_prompt({"name": name, "statement": statement})
-            if candidate == prompt:
-                if self._lean_available():
-                    if self._verify_lean(statement, predicted):
-                        return 1.0
-                    return 0.0
-                return 0.0
+        statement = self._core_lookup.get(prompt)
+        if statement is None:
+            return 0.0
+
+        if not self._lean_available():
+            return 0.0
+
+        core_statements = {s for _, s, _ in CORE_THEOREMS}
+        use_mathlib = statement not in core_statements and self._mathlib_available()
+
+        if self._verify_lean(statement, predicted, use_mathlib=use_mathlib):
+            return 1.0
         return 0.0
