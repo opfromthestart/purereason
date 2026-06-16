@@ -52,14 +52,29 @@ class MBPPTask(TaskEnv):
         "body, no explanation.\n\n{description}\n\n```python\n{code}\n```"
     )
 
+    def __init__(self):
+        self._lookup: dict[str, dict] = {}
+
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("google-research-datasets/mbpp", "full", split="train")
-        ds = ds.map(
-            lambda x: {"prompt": self.get_prompt(x), "task_name": "mbpp"},
-            remove_columns=ds.column_names,
-        )
-        return ds
+
+        data = []
+        for row in ds:
+            prompt = self.get_prompt(row)
+            test_list = row.get("test_list", [])
+            if isinstance(test_list, str):
+                test_list = [test_list]
+            imports = row.get("test_imports", "")
+            if isinstance(imports, list):
+                imports = "\n".join(imports)
+            self._lookup[prompt] = {
+                "test_list": test_list,
+                "test_imports": imports,
+            }
+            data.append({"prompt": prompt, "task_name": "mbpp"})
+
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(
@@ -68,66 +83,55 @@ class MBPPTask(TaskEnv):
         )
 
     def compute_reward(self, prompt: str, completion: str) -> float:
+        info = self._lookup.get(prompt)
+        if info is None:
+            return 0.0
+
         code = _extract_code_block(completion)
-        ds = load_dataset_for_mbpp()
-        for row in ds:
-            if self.get_prompt(row) == prompt:
-                test_list = row.get("test_list", [])
-                if isinstance(test_list, str):
-                    test_list = [test_list]
-                if not test_list:
-                    return 0.0
-                imports = row.get("test_imports", "")
-                if isinstance(imports, list):
-                    imports = "\n".join(imports)
-                prefix = (imports + "\n\n") if imports else ""
-                passed = 0
-                for test in test_list:
-                    full = prefix + code + "\n\n" + test
-                    p, _ = _run_code(full)
-                    passed += p
-                return passed / len(test_list)
-        return 0.0
+        test_list = info["test_list"]
+        if not test_list:
+            return 0.0
 
-
-def load_dataset_for_mbpp():
-    from datasets import load_dataset
-    return load_dataset("google-research-datasets/mbpp", "full", split="train")
+        prefix = (info["test_imports"] + "\n\n") if info["test_imports"] else ""
+        passed = 0
+        for test in test_list:
+            full = prefix + code + "\n\n" + test
+            p, _ = _run_code(full)
+            passed += p
+        return passed / len(test_list)
 
 
 @TaskRegistry.register("humaneval")
 class HumanEvalTask(TaskEnv):
     PROMPT_TEMPLATE = "{prompt}"
 
+    def __init__(self):
+        self._lookup: dict[str, str] = {}
+
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("openai/openai_humaneval", split="test")
-        ds = ds.map(
-            lambda x: {"prompt": self.get_prompt(x), "task_name": "humaneval"},
-        )
-        return ds
+
+        data = []
+        for row in ds:
+            prompt = self.get_prompt(row)
+            self._lookup[prompt] = row.get("test", "")
+            data.append({"prompt": prompt, "task_name": "humaneval"})
+
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(prompt=example["prompt"])
 
     def compute_reward(self, prompt: str, completion: str) -> float:
+        test_code = self._lookup.get(prompt)
+        if test_code is None or not test_code:
+            return 0.0
+
         body = _extract_code_block(completion)
         body_lines = body.strip().split("\n")
         indented = "\n".join("    " + line.lstrip() for line in body_lines)
         full_func = prompt + "\n" + indented
-
-        ds = load_dataset_for_humaneval()
-        for row in ds:
-            if row["prompt"] == prompt:
-                test_code = row.get("test", "")
-                if not test_code:
-                    return 0.0
-                full_code = full_func + "\n\n" + test_code
-                passed, total = _run_code(full_code)
-                return passed / total if total > 0 else 0.0
-        return 0.0
-
-
-def load_dataset_for_humaneval():
-    from datasets import load_dataset
-    return load_dataset("openai/openai_humaneval", split="test")
+        full_code = full_func + "\n\n" + test_code
+        passed, total = _run_code(full_code)
+        return passed / total if total > 0 else 0.0

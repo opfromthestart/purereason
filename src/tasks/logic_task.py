@@ -13,21 +13,24 @@ class PRONTOQATask(TaskEnv):
         "Facts: {context}\n\nQuestion: {question}\n\nOptions: {options}"
     )
 
+    def __init__(self):
+        self._refs: dict[str, str] = {}
+
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("renma/ProntoQA", split="validation")
 
-        def _resolve_answer(row):
-            row["prompt"] = self.get_prompt(row)
-            row["task_name"] = "prontoqa"
+        data = []
+        for row in ds:
+            prompt = self.get_prompt(row)
             letter = row.get("answer", "").strip().upper()
             options = row.get("options", [])
             idx = ord(letter) - ord("A") if letter else -1
-            row["answer_text"] = options[idx] if 0 <= idx < len(options) else letter
-            return row
+            answer_text = options[idx] if 0 <= idx < len(options) else letter
+            self._refs[prompt] = answer_text
+            data.append({"prompt": prompt, "task_name": "prontoqa"})
 
-        ds = ds.map(_resolve_answer)
-        return ds
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         options = example.get("options", [])
@@ -40,7 +43,7 @@ class PRONTOQATask(TaskEnv):
 
     def compute_reward(self, prompt: str, completion: str) -> float:
         pred = self._extract_answer(completion)
-        ref = self._lookup_reference(prompt)
+        ref = self._refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         if pred.strip().lower() == ref.strip().lower():
@@ -63,15 +66,3 @@ class PRONTOQATask(TaskEnv):
             if stripped.lower() in ("true", "false", "yes", "no", "a", "b"):
                 return stripped
         return None
-
-    def _lookup_reference(self, prompt: str) -> str | None:
-        ds = load_dataset_for_prontoqa()
-        for row in ds:
-            if self.get_prompt(row) == prompt:
-                return row.get("answer_text", "").strip()
-        return None
-
-
-def load_dataset_for_prontoqa():
-    from datasets import load_dataset
-    return load_dataset("renma/ProntoQA", split="validation")

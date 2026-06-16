@@ -12,15 +12,23 @@ class GSM8KTask(TaskEnv):
         "\\boxed{{}}.\n\nProblem: {question}"
     )
 
+    def __init__(self):
+        self._refs: dict[str, str] = {}
+
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("openai/gsm8k", "main", split="train")
         ds = ds.select_columns(["question", "answer"])
-        ds = ds.map(
-            lambda x: {"prompt": self.get_prompt(x), "task_name": "gsm8k"},
-            remove_columns=["question", "answer"],
-        )
-        return ds
+
+        data = []
+        for row in ds:
+            prompt = self.get_prompt(row)
+            match = re.search(r"####\s*(-?\d+\.?\d*)", row["answer"])
+            if match:
+                self._refs[prompt] = match.group(1).strip()
+            data.append({"prompt": prompt, "task_name": "gsm8k"})
+
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(question=example["question"])
@@ -28,7 +36,7 @@ class GSM8KTask(TaskEnv):
     def compute_reward(self, prompt: str, completion: str) -> float:
         import sympy
         pred = self._extract_answer(completion)
-        ref = self._extract_reference(prompt)
+        ref = self._refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         try:
@@ -56,21 +64,6 @@ class GSM8KTask(TaskEnv):
                 return matches[-1].strip()
         return None
 
-    def _extract_reference(self, prompt: str) -> str | None:
-        ds = load_dataset_for_gsm8k()
-        for row in ds:
-            formatted = self.get_prompt(row)
-            if formatted == prompt:
-                match = re.search(r"####\s*(-?\d+\.?\d*)", row["answer"])
-                if match:
-                    return match.group(1).strip()
-        return None
-
-
-def load_dataset_for_gsm8k():
-    from datasets import load_dataset
-    return load_dataset("openai/gsm8k", "main", split="train")
-
 
 @TaskRegistry.register("math")
 class MATHTask(TaskEnv):
@@ -79,21 +72,23 @@ class MATHTask(TaskEnv):
         "\\boxed{{}}.\n\nProblem: {problem}"
     )
 
+    def __init__(self):
+        self._refs: dict[str, str] = {}
+
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("qwedsacf/competition_math", split="train")
         ds = ds.select_columns(["problem", "solution"])
 
-        def _add_answer(row):
-            import re
+        data = []
+        for row in ds:
+            prompt = self.get_prompt(row)
             matches = re.findall(r"\\boxed\{([^}]*)\}", row["solution"])
-            row["answer"] = matches[-1].strip() if matches else ""
-            row["prompt"] = self.get_prompt(row)
-            row["task_name"] = "math"
-            return row
+            answer = matches[-1].strip() if matches else ""
+            self._refs[prompt] = answer
+            data.append({"prompt": prompt, "task_name": "math"})
 
-        ds = ds.map(_add_answer, remove_columns=["problem", "solution"])
-        return ds
+        return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(problem=example["problem"])
@@ -101,7 +96,7 @@ class MATHTask(TaskEnv):
     def compute_reward(self, prompt: str, completion: str) -> float:
         import sympy
         pred = self._extract_answer(completion)
-        ref = self._lookup_reference(prompt)
+        ref = self._refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         try:
@@ -126,15 +121,3 @@ class MATHTask(TaskEnv):
             if matches:
                 return matches[-1].strip()
         return None
-
-    def _lookup_reference(self, prompt: str) -> str | None:
-        ds = load_dataset_for_math()
-        for row in ds:
-            if self.get_prompt(row) == prompt:
-                return row["answer"].strip()
-        return None
-
-
-def load_dataset_for_math():
-    from datasets import load_dataset
-    return load_dataset("qwedsacf/competition_math", split="train")
