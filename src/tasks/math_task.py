@@ -81,12 +81,18 @@ class MATHTask(TaskEnv):
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
-        ds = load_dataset("hendrycks/competition_math", split="train")
-        ds = ds.select_columns(["problem", "solution", "answer"])
-        ds = ds.map(
-            lambda x: {"prompt": self.get_prompt(x), "task_name": "math"},
-            remove_columns=["problem", "solution", "answer"],
-        )
+        ds = load_dataset("qwedsacf/competition_math", split="train")
+        ds = ds.select_columns(["problem", "solution"])
+
+        def _add_answer(row):
+            import re
+            matches = re.findall(r"\\boxed\{([^}]*)\}", row["solution"])
+            row["answer"] = matches[-1].strip() if matches else ""
+            row["prompt"] = self.get_prompt(row)
+            row["task_name"] = "math"
+            return row
+
+        ds = ds.map(_add_answer, remove_columns=["problem", "solution"])
         return ds
 
     def get_prompt(self, example: dict) -> str:
@@ -131,4 +137,4 @@ class MATHTask(TaskEnv):
 
 def load_dataset_for_math():
     from datasets import load_dataset
-    return load_dataset("hendrycks/competition_math", split="train")
+    return load_dataset("qwedsacf/competition_math", split="train")
