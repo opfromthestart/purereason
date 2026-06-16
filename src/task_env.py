@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from typing import Any
+
 from datasets import Dataset
 
 
@@ -10,7 +12,7 @@ class TaskEnv(ABC):
         ...
 
     @abstractmethod
-    def get_prompt(self, example: dict) -> str:
+    def get_prompt(self, example: Any) -> str:
         ...
 
     @abstractmethod

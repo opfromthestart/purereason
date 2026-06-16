@@ -1,8 +1,6 @@
 import os
-import sys
-import torch
 
-from trl import GRPOConfig, GRPOTrainer
+from trl import GRPOConfig, GRPOTrainer  # type: ignore[reportPrivateImportUsage]
 
 from src.config import Config
 from src.model import load_model_and_tokenizer, save_model
@@ -12,6 +10,8 @@ from src.task_env import TaskRegistry
 
 def create_reward_fn():
     def reward_fn(prompts, completions, task_name=None, **kwargs):
+        if task_name is None:
+            return [0.0] * len(completions)
         rewards = []
         for i, (prompt, completion) in enumerate(zip(prompts, completions)):
             try:
@@ -28,7 +28,7 @@ def create_reward_fn():
 def main():
     config = Config()
 
-    import src.tasks.math_task        # noqa: triggers @TaskRegistry.register
+    import src.tasks.math_task        # noqa
     import src.tasks.code_task        # noqa
     import src.tasks.logic_task       # noqa
     import src.tasks.sokoban_task     # noqa
@@ -46,7 +46,6 @@ def main():
         per_device_train_batch_size=config.training.per_device_train_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         num_generations=config.training.num_generations_per_prompt,
-        max_prompt_length=config.training.max_prompt_length,
         max_completion_length=config.training.max_completion_length,
         temperature=config.training.temperature,
         learning_rate=config.training.learning_rate,

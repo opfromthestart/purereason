@@ -7,13 +7,17 @@ SYMBOLS = {"empty": " ", "wall": "#", "box": "$", "target": ".", "box_on_target"
 
 
 class SokobanEnv:
+    grid: list[list[str]]
+    init_grid: list[list[str]]
+    agent_pos: tuple[int, int]
+
     def __init__(self, width: int = 6, height: int = 6, num_boxes: int = 2, seed: int = 42):
         random.seed(seed)
         self.width = width
         self.height = height
         self.num_boxes = num_boxes
-        self.grid = None
-        self.init_grid = None
+        self.grid = []
+        self.init_grid = []
         self.agent_pos = (0, 0)
         self.reset()
 

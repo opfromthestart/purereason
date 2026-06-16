@@ -77,9 +77,13 @@ class MBPPTask(TaskEnv):
                     test_list = [test_list]
                 if not test_list:
                     return 0.0
+                imports = row.get("test_imports", "")
+                if isinstance(imports, list):
+                    imports = "\n".join(imports)
+                prefix = (imports + "\n\n") if imports else ""
                 passed = 0
                 for test in test_list:
-                    full = code + "\n\n" + test
+                    full = prefix + code + "\n\n" + test
                     p, _ = _run_code(full)
                     passed += p
                 return passed / len(test_list)

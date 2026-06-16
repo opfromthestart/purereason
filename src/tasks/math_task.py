@@ -1,6 +1,6 @@
 import re
 
-from datasets import Dataset, concatenate_datasets
+from datasets import Dataset
 
 from src.task_env import TaskEnv, TaskRegistry
 
@@ -9,7 +9,7 @@ from src.task_env import TaskEnv, TaskRegistry
 class GSM8KTask(TaskEnv):
     PROMPT_TEMPLATE = (
         "Solve this math problem step by step. Put your final answer within "
-        "\\boxed{}.\n\nProblem: {question}"
+        "\\boxed{{}}.\n\nProblem: {question}"
     )
 
     def load_dataset(self) -> Dataset:
@@ -76,7 +76,7 @@ def load_dataset_for_gsm8k():
 class MATHTask(TaskEnv):
     PROMPT_TEMPLATE = (
         "Solve this math problem step by step. Put your final answer within "
-        "\\boxed{}.\n\nProblem: {problem}"
+        "\\boxed{{}}.\n\nProblem: {problem}"
     )
 
     def load_dataset(self) -> Dataset:
