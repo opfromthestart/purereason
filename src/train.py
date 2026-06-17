@@ -96,7 +96,7 @@ def main():
         bf16=config.training.bf16,
         beta=config.training.beta,
         seed=config.training.seed,
-        report_to="wandb",
+        report_to="none",
         remove_unused_columns=False,
     )
 
