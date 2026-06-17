@@ -5,15 +5,16 @@ from src.config import ModelConfig
 
 
 def load_model_and_tokenizer(config: ModelConfig) -> tuple:
-    dtype = getattr(torch, config.bnb_4bit_compute_dtype)
+    kwargs = {
+        "model_name": config.base_model,
+        "max_seq_length": config.max_seq_length,
+        "load_in_4bit": config.load_in_4bit,
+        "use_gradient_checkpointing": "unsloth" if config.gradient_checkpointing else False,
+    }
+    if not config.load_in_4bit:
+        kwargs["dtype"] = getattr(torch, config.bnb_4bit_compute_dtype)
 
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=config.base_model,
-        max_seq_length=config.max_seq_length,
-        load_in_4bit=config.load_in_4bit,
-        dtype=dtype,
-        use_gradient_checkpointing="unsloth" if config.gradient_checkpointing else False,
-    )
+    model, tokenizer = FastLanguageModel.from_pretrained(**kwargs)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
