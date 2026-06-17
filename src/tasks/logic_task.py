@@ -4,6 +4,8 @@ from datasets import Dataset
 
 from src.task_env import TaskEnv, TaskRegistry
 
+_prontoqa_refs: dict[str, str] = {}
+
 
 @TaskRegistry.register("prontoqa")
 class PRONTOQATask(TaskEnv):
@@ -12,9 +14,6 @@ class PRONTOQATask(TaskEnv):
         "step. Put your final answer on a new line after 'Answer:'.\n\n"
         "Facts: {context}\n\nQuestion: {question}\n\nOptions: {options}"
     )
-
-    def __init__(self):
-        self._refs: dict[str, str] = {}
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
@@ -27,7 +26,7 @@ class PRONTOQATask(TaskEnv):
             options = row.get("options", [])
             idx = ord(letter) - ord("A") if letter else -1
             answer_text = options[idx] if 0 <= idx < len(options) else letter
-            self._refs[prompt] = answer_text
+            _prontoqa_refs[prompt] = answer_text
             data.append({"prompt": prompt, "task_name": "prontoqa"})
 
         return Dataset.from_list(data)
@@ -43,7 +42,7 @@ class PRONTOQATask(TaskEnv):
 
     def compute_reward(self, prompt: str, completion: str) -> float:
         pred = self._extract_answer(completion)
-        ref = self._refs.get(prompt)
+        ref = _prontoqa_refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         if pred.strip().lower() == ref.strip().lower():

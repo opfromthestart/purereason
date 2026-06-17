@@ -110,6 +110,10 @@ def _extract_mathlib_theorems() -> list[dict]:
     return theorems
 
 
+_lean_lookup: dict[str, dict] = {}
+_lean_reward_cache: dict[tuple[str, str], float] = {}
+
+
 @TaskRegistry.register("lean_minif2f")
 class LeanMiniF2FTask(TaskEnv):
     PROMPT_TEMPLATE = (
@@ -118,21 +122,17 @@ class LeanMiniF2FTask(TaskEnv):
         "```lean\n{statement}\n```"
     )
 
-    def __init__(self):
-        self._lookup: dict[str, dict] = {}
-        self._reward_cache: dict[tuple[str, str], float] = {}
-
     def load_dataset(self) -> Dataset:
         data = []
 
         for name, statement, _ in CORE_THEOREMS:
             prompt = self.get_prompt({"statement": statement})
-            self._lookup[prompt] = {"statement": statement, "module": None}
+            _lean_lookup[prompt] = {"statement": statement, "module": None}
             data.append({"prompt": prompt, "task_name": "lean_minif2f"})
 
         for t in _extract_mathlib_theorems():
             prompt = self.get_prompt({"statement": t["statement"]})
-            self._lookup[prompt] = {"statement": t["statement"], "module": t["module"]}
+            _lean_lookup[prompt] = {"statement": t["statement"], "module": t["module"]}
             data.append({"prompt": prompt, "task_name": "lean_minif2f"})
 
         return Dataset.from_list(data)
@@ -197,10 +197,10 @@ class LeanMiniF2FTask(TaskEnv):
             return 0.0
 
         cache_key = (prompt, predicted)
-        if cache_key in self._reward_cache:
-            return self._reward_cache[cache_key]
+        if cache_key in _lean_reward_cache:
+            return _lean_reward_cache[cache_key]
 
-        info = self._lookup.get(prompt)
+        info = _lean_lookup.get(prompt)
         if info is None:
             result = 0.0
         elif not self._lean_available():
@@ -210,5 +210,5 @@ class LeanMiniF2FTask(TaskEnv):
         else:
             result = 0.0
 
-        self._reward_cache[cache_key] = result
+        _lean_reward_cache[cache_key] = result
         return result

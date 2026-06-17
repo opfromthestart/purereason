@@ -4,6 +4,9 @@ from datasets import Dataset
 
 from src.task_env import TaskEnv, TaskRegistry
 
+_gsm8k_refs: dict[str, str] = {}
+_math_refs: dict[str, str] = {}
+
 
 @TaskRegistry.register("gsm8k")
 class GSM8KTask(TaskEnv):
@@ -11,9 +14,6 @@ class GSM8KTask(TaskEnv):
         "Solve this math problem step by step. Put your final answer within "
         "\\boxed{{}}.\n\nProblem: {question}"
     )
-
-    def __init__(self):
-        self._refs: dict[str, str] = {}
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
@@ -25,7 +25,7 @@ class GSM8KTask(TaskEnv):
             prompt = self.get_prompt(row)
             match = re.search(r"####\s*(-?\d+\.?\d*)", row["answer"])
             if match:
-                self._refs[prompt] = match.group(1).strip()
+                _gsm8k_refs[prompt] = match.group(1).strip()
             data.append({"prompt": prompt, "task_name": "gsm8k"})
 
         return Dataset.from_list(data)
@@ -36,7 +36,7 @@ class GSM8KTask(TaskEnv):
     def compute_reward(self, prompt: str, completion: str) -> float:
         import sympy
         pred = self._extract_answer(completion)
-        ref = self._refs.get(prompt)
+        ref = _gsm8k_refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         try:
@@ -72,9 +72,6 @@ class MATHTask(TaskEnv):
         "\\boxed{{}}.\n\nProblem: {problem}"
     )
 
-    def __init__(self):
-        self._refs: dict[str, str] = {}
-
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("qwedsacf/competition_math", split="train")
@@ -85,7 +82,7 @@ class MATHTask(TaskEnv):
             prompt = self.get_prompt(row)
             matches = re.findall(r"\\boxed\{([^}]*)\}", row["solution"])
             answer = matches[-1].strip() if matches else ""
-            self._refs[prompt] = answer
+            _math_refs[prompt] = answer
             data.append({"prompt": prompt, "task_name": "math"})
 
         return Dataset.from_list(data)
@@ -96,7 +93,7 @@ class MATHTask(TaskEnv):
     def compute_reward(self, prompt: str, completion: str) -> float:
         import sympy
         pred = self._extract_answer(completion)
-        ref = self._refs.get(prompt)
+        ref = _math_refs.get(prompt)
         if pred is None or ref is None:
             return 0.0
         try:

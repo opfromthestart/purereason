@@ -45,15 +45,16 @@ def _extract_code_block(completion: str) -> str:
     return completion.strip()
 
 
+_mbpp_lookup: dict[str, dict] = {}
+_humaneval_lookup: dict[str, str] = {}
+
+
 @TaskRegistry.register("mbpp")
 class MBPPTask(TaskEnv):
     PROMPT_TEMPLATE = (
         "Complete the following Python function. Return only the function "
         "body, no explanation.\n\n{description}\n\n```python\n{code}\n```"
     )
-
-    def __init__(self):
-        self._lookup: dict[str, dict] = {}
 
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
@@ -68,7 +69,7 @@ class MBPPTask(TaskEnv):
             imports = row.get("test_imports", "")
             if isinstance(imports, list):
                 imports = "\n".join(imports)
-            self._lookup[prompt] = {
+            _mbpp_lookup[prompt] = {
                 "test_list": test_list,
                 "test_imports": imports,
             }
@@ -83,7 +84,7 @@ class MBPPTask(TaskEnv):
         )
 
     def compute_reward(self, prompt: str, completion: str) -> float:
-        info = self._lookup.get(prompt)
+        info = _mbpp_lookup.get(prompt)
         if info is None:
             return 0.0
 
@@ -105,9 +106,6 @@ class MBPPTask(TaskEnv):
 class HumanEvalTask(TaskEnv):
     PROMPT_TEMPLATE = "{prompt}"
 
-    def __init__(self):
-        self._lookup: dict[str, str] = {}
-
     def load_dataset(self) -> Dataset:
         from datasets import load_dataset
         ds = load_dataset("openai/openai_humaneval", split="test")
@@ -115,7 +113,7 @@ class HumanEvalTask(TaskEnv):
         data = []
         for row in ds:
             prompt = self.get_prompt(row)
-            self._lookup[prompt] = row.get("test", "")
+            _humaneval_lookup[prompt] = row.get("test", "")
             data.append({"prompt": prompt, "task_name": "humaneval"})
 
         return Dataset.from_list(data)
@@ -124,7 +122,7 @@ class HumanEvalTask(TaskEnv):
         return self.PROMPT_TEMPLATE.format(prompt=example["prompt"])
 
     def compute_reward(self, prompt: str, completion: str) -> float:
-        test_code = self._lookup.get(prompt)
+        test_code = _humaneval_lookup.get(prompt)
         if test_code is None or not test_code:
             return 0.0
 

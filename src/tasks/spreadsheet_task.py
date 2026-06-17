@@ -27,6 +27,9 @@ TASK_TEMPLATES = [
 ]
 
 
+_spreadsheet_puzzles: dict[str, dict] = {}
+
+
 @TaskRegistry.register("spreadsheet")
 class SpreadsheetTask(TaskEnv):
     PROMPT_TEMPLATE = (
@@ -40,7 +43,6 @@ class SpreadsheetTask(TaskEnv):
 
     def __init__(self, num_puzzles: int = 500):
         self.num_puzzles = num_puzzles
-        self._puzzles = {}
 
     def load_dataset(self) -> Dataset:
         data = []
@@ -50,11 +52,11 @@ class SpreadsheetTask(TaskEnv):
             grid = env.reset()
             task_text, formula = self._generate_task(env)
             expected = env.evaluate_formula(formula, "Z0")
-            self._puzzles[i] = {"env": env, "grid": grid, "task": task_text, "expected": expected}
-            data.append({
-                "prompt": self.get_prompt({"grid": grid, "task": task_text}),
-                "task_name": "spreadsheet",
-            })
+            prompt = self.get_prompt({"grid": grid, "task": task_text})
+            _spreadsheet_puzzles[prompt] = {
+                "env": env, "grid": grid, "task": task_text, "expected": expected,
+            }
+            data.append({"prompt": prompt, "task_name": "spreadsheet"})
         return Dataset.from_list(data)
 
     def _generate_task(self, env: SpreadsheetEnv) -> tuple[str, str]:
@@ -83,11 +85,7 @@ class SpreadsheetTask(TaskEnv):
         )
 
     def compute_reward(self, prompt: str, completion: str) -> float:
-        puzzle = None
-        for pid, pdata in self._puzzles.items():
-            if self.get_prompt({"grid": pdata["grid"], "task": pdata["task"]}) == prompt:
-                puzzle = pdata
-                break
+        puzzle = _spreadsheet_puzzles.get(prompt)
         if puzzle is None:
             return 0.0
 

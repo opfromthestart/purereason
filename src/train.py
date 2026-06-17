@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,6 +11,8 @@ from src.config import Config
 from src.model import load_model_and_tokenizer, save_model
 from src.dataset import build_mixed_dataset
 from src.task_env import TaskRegistry
+
+_reward_tracker: dict[str, list[float]] = defaultdict(list)
 
 
 def create_reward_fn():
@@ -22,11 +25,24 @@ def create_reward_fn():
                 task = TaskRegistry.get(task_name[i])
                 r = task.compute_reward(prompt, completion)
                 rewards.append(r)
+                _reward_tracker[task_name[i]].append(r)
             except Exception as e:
                 print(f"[WARN] Reward computation failed: {e}")
                 rewards.append(0.0)
         return rewards
     return reward_fn
+
+
+def log_rewards():
+    if not _reward_tracker:
+        return
+    parts = []
+    for task_name in sorted(_reward_tracker):
+        vals = _reward_tracker[task_name]
+        if vals:
+            avg = sum(vals) / len(vals)
+            parts.append(f"{task_name}: {avg:.2f} (n={len(vals)})")
+    print(f"[REWARD] {' | '.join(parts)}")
 
 
 def main():
@@ -58,12 +74,15 @@ def main():
         for d in os.listdir(checkpoint_dir)
         if d.startswith("checkpoint-") and os.path.isdir(os.path.join(checkpoint_dir, d))
     )
+    if resume:
+        print(f"[INFO] Resuming from checkpoint in {checkpoint_dir}")
 
     grpo_config = GRPOConfig(
         output_dir=config.training.output_dir,
         per_device_train_batch_size=config.training.per_device_train_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         num_generations=config.training.num_generations_per_prompt,
+        max_prompt_length=config.training.max_prompt_length,
         max_completion_length=config.training.max_completion_length,
         temperature=config.training.temperature,
         learning_rate=config.training.learning_rate,
@@ -75,7 +94,6 @@ def main():
         save_strategy="steps",
         save_total_limit=3,
         bf16=config.training.bf16,
-        gradient_checkpointing=config.training.gradient_checkpointing,
         beta=config.training.beta,
         seed=config.training.seed,
         report_to="wandb",
@@ -92,6 +110,7 @@ def main():
 
     trainer.train(resume_from_checkpoint=resume or None)
 
+    log_rewards()
     save_model(model, tokenizer, os.path.join(config.training.output_dir, "final"))
 
 

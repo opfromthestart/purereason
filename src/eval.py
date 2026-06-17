@@ -12,7 +12,7 @@ from src.model import load_model_and_tokenizer
 from src.task_env import TaskRegistry
 
 
-def evaluate(model, tokenizer, task_name: str, split: str = "test", max_samples: int = 100):
+def evaluate(model, tokenizer, task_name: str, max_samples: int = 100):
     task = TaskRegistry.get(task_name)
     ds = task.load_dataset()
     ds = ds.select(range(min(len(ds), max_samples)))

@@ -4,6 +4,8 @@ from datasets import Dataset
 from src.task_env import TaskEnv, TaskRegistry
 from src.envs.sokoban_env import SokobanEnv
 
+_sokoban_puzzles: dict[str, dict] = {}
+
 
 @TaskRegistry.register("sokoban")
 class SokobanTask(TaskEnv):
@@ -17,27 +19,23 @@ class SokobanTask(TaskEnv):
     def __init__(self, num_puzzles: int = 500, max_moves: int = 50):
         self.num_puzzles = num_puzzles
         self.max_moves = max_moves
-        self._puzzles = {}
 
     def load_dataset(self) -> Dataset:
         data = []
         for i in range(self.num_puzzles):
             env = SokobanEnv(width=6, height=6, num_boxes=2, seed=42 + i)
             board = env.reset()
-            self._puzzles[i] = {"env": env, "board": board}
-            data.append({"prompt": self.get_prompt({"board": board}), "task_name": "sokoban"})
+            prompt = self.get_prompt({"board": board})
+            _sokoban_puzzles[prompt] = {"env": env, "board": board}
+            data.append({"prompt": prompt, "task_name": "sokoban"})
         return Dataset.from_list(data)
 
     def get_prompt(self, example: dict) -> str:
         return self.PROMPT_TEMPLATE.format(board=example["board"])
 
     def compute_reward(self, prompt: str, completion: str) -> float:
-        board = None
-        for pid, puzzle in self._puzzles.items():
-            if self.get_prompt({"board": puzzle["board"]}) == prompt:
-                board = puzzle["board"]
-                break
-        if board is None:
+        puzzle = _sokoban_puzzles.get(prompt)
+        if puzzle is None:
             return 0.0
 
         env = SokobanEnv(width=6, height=6, num_boxes=2, seed=42)
