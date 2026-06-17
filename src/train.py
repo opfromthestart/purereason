@@ -1,3 +1,4 @@
+import unsloth  # noqa: must precede trl/transformers/peft
 import os
 import sys
 from collections import defaultdict

@@ -1,3 +1,4 @@
+import unsloth  # noqa: must be first
 import torch
 from unsloth import FastLanguageModel
 from src.config import ModelConfig
