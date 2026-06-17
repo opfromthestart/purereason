@@ -120,6 +120,7 @@ class LeanMiniF2FTask(TaskEnv):
 
     def __init__(self):
         self._lookup: dict[str, dict] = {}
+        self._reward_cache: dict[tuple[str, str], float] = {}
 
     def load_dataset(self) -> Dataset:
         data = []
@@ -195,13 +196,19 @@ class LeanMiniF2FTask(TaskEnv):
         if not predicted:
             return 0.0
 
+        cache_key = (prompt, predicted)
+        if cache_key in self._reward_cache:
+            return self._reward_cache[cache_key]
+
         info = self._lookup.get(prompt)
         if info is None:
-            return 0.0
+            result = 0.0
+        elif not self._lean_available():
+            result = 0.0
+        elif self._verify_lean(info["statement"], predicted, info.get("module")):
+            result = 1.0
+        else:
+            result = 0.0
 
-        if not self._lean_available():
-            return 0.0
-
-        if self._verify_lean(info["statement"], predicted, info.get("module")):
-            return 1.0
-        return 0.0
+        self._reward_cache[cache_key] = result
+        return result

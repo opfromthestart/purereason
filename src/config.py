@@ -46,7 +46,7 @@ class TaskSamplingConfig:
         "math": 0.15,
         "mbpp": 0.15,
         "prontoqa": 0.15,
-        "lean_minif2f": 0.10,
+        "lean_minif2f": 0.00,
         "sokoban": 0.10,
         "spreadsheet": 0.10,
     })
@@ -95,10 +95,10 @@ def colab_config() -> Config:
         task_sampling=TaskSamplingConfig(
             tasks={
                 "gsm8k": 0.25,
-                "math": 0.15,
+                "math": 0.20,
                 "mbpp": 0.15,
                 "prontoqa": 0.15,
-                "lean_minif2f": 0.10,
+                "lean_minif2f": 0.00,
                 "sokoban": 0.10,
                 "spreadsheet": 0.10,
             },
