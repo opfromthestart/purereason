@@ -30,7 +30,14 @@ def create_reward_fn():
 
 
 def main():
-    config = Config()
+    import argparse
+    from src.config import colab_config
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--preset", choices=["local", "colab"], default="local")
+    args = parser.parse_args()
+
+    config = colab_config() if args.preset == "colab" else Config()
 
     import src.tasks.math_task        # noqa
     import src.tasks.code_task        # noqa

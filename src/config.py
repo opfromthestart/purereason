@@ -33,7 +33,7 @@ class TrainingConfig:
     logging_steps: int = 10
     save_steps: int = 200
     eval_steps: int = 200
-    beta: float = 0.0  # KL coefficient — disabled
+    beta: float = 0.0
     seed: int = 42
     bf16: bool = True
     gradient_checkpointing: bool = True
@@ -58,3 +58,50 @@ class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     task_sampling: TaskSamplingConfig = field(default_factory=TaskSamplingConfig)
+
+
+def colab_config() -> Config:
+    """Configuration for Google Colab T4 (16GB VRAM)."""
+    return Config(
+        model=ModelConfig(
+            base_model="Qwen/Qwen2.5-1.5B-Instruct",
+            fallback_model="Qwen/Qwen2.5-0.5B-Instruct",
+            load_in_4bit=False,
+            bnb_4bit_compute_dtype="bfloat16",
+            bnb_4bit_quant_type="nf4",
+            lora_r=32,
+            lora_alpha=64,
+            lora_dropout=0.05,
+        ),
+        training=TrainingConfig(
+            output_dir="./output",
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=4,
+            num_generations_per_prompt=4,
+            max_prompt_length=512,
+            max_completion_length=1024,
+            temperature=0.8,
+            learning_rate=2e-4,
+            lr_scheduler_type="cosine",
+            warmup_steps=50,
+            max_steps=5000,
+            logging_steps=10,
+            save_steps=200,
+            bf16=True,
+            gradient_checkpointing=True,
+            beta=0.0,
+            seed=42,
+        ),
+        task_sampling=TaskSamplingConfig(
+            tasks={
+                "gsm8k": 0.25,
+                "math": 0.15,
+                "mbpp": 0.15,
+                "prontoqa": 0.15,
+                "lean_minif2f": 0.10,
+                "sokoban": 0.10,
+                "spreadsheet": 0.10,
+            },
+            max_samples_per_task=2000,
+        ),
+    )
