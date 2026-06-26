@@ -5,9 +5,9 @@ from dataclasses import dataclass, field
 class ModelConfig:
     base_model: str = "LiquidAI/LFM2.5-350M"
     fallback_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    max_seq_length: int = 4096
-    load_in_4bit: bool = True
-    bnb_4bit_compute_dtype: str = "bfloat16"
+    max_seq_length: int = 2048
+    load_in_4bit: bool = False
+    bnb_4bit_compute_dtype: str = "float16"
     bnb_4bit_quant_type: str = "nf4"
     lora_r: int = 16
     lora_alpha: int = 32
@@ -38,7 +38,7 @@ class TrainingConfig:
     eval_steps: int = 200
     beta: float = 0.0
     seed: int = 42
-    bf16: bool = True
+    bf16: bool = False
 
 
 @dataclass
