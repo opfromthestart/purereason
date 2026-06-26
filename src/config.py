@@ -5,12 +5,12 @@ from dataclasses import dataclass, field
 class ModelConfig:
     base_model: str = "LiquidAI/LFM2.5-350M"
     fallback_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    max_seq_length: int = 2048
+    max_seq_length: int = 4096
     load_in_4bit: bool = False
     bnb_4bit_compute_dtype: str = "float16"
     bnb_4bit_quant_type: str = "nf4"
-    lora_r: int = 16
-    lora_alpha: int = 32
+    lora_r: int = 64
+    lora_alpha: int = 128
     lora_dropout: float = 0.05
     lora_target_modules: list[str] = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
@@ -24,10 +24,10 @@ class ModelConfig:
 class TrainingConfig:
     output_dir: str = "./output"
     per_device_train_batch_size: int = 1
-    gradient_accumulation_steps: int = 2
-    num_generations_per_prompt: int = 2
-    max_prompt_length: int = 512
-    max_completion_length: int = 256
+    gradient_accumulation_steps: int = 4
+    num_generations_per_prompt: int = 4
+    max_prompt_length: int = 1024
+    max_completion_length: int = 512
     temperature: float = 0.8
     learning_rate: float = 2e-4
     lr_scheduler_type: str = "cosine"
