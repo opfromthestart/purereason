@@ -66,7 +66,7 @@ def main():
 
     model, tokenizer = load_model_and_tokenizer(config.model)
 
-    dataset = build_mixed_dataset(config.task_sampling)
+    dataset = build_mixed_dataset(config.task_sampling, tokenizer)
 
     checkpoint_dir = config.training.output_dir
     resume = any(
