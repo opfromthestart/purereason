@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ModelConfig:
-    base_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    base_model: str = "LiquidAI/LFM2.5-350M"
     fallback_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    max_seq_length: int = 1024
+    max_seq_length: int = 4096
     load_in_4bit: bool = True
     bnb_4bit_compute_dtype: str = "bfloat16"
     bnb_4bit_quant_type: str = "nf4"
@@ -66,9 +66,9 @@ def colab_config() -> Config:
     """Configuration for Google Colab T4/A100 (16GB+ VRAM)."""
     return Config(
         model=ModelConfig(
-            base_model="Qwen/Qwen2.5-1.5B-Instruct",
+            base_model="LiquidAI/LFM2.5-350M",
             fallback_model="Qwen/Qwen2.5-0.5B-Instruct",
-            max_seq_length=4096,
+            max_seq_length=8192,
             load_in_4bit=True,
             bnb_4bit_compute_dtype="bfloat16",
             lora_r=32,
