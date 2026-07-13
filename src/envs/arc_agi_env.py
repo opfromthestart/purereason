@@ -59,8 +59,10 @@ def parse_action(text: str, available_actions: list[int]) -> tuple[int, dict | N
     return (0, None)
 
 
-def create_arcade():
+def create_arcade(environments_dir: str | None = None):
     import arc_agi
+    if environments_dir:
+        return arc_agi.Arcade(environments_dir=environments_dir)
     return arc_agi.Arcade()
 
 

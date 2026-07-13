@@ -8,17 +8,18 @@ class ArcAGITask(TaskEnv):
     is_interactive = True
 
     def __init__(self, game_ids: list[str] | None = None, num_episodes: int = 500,
-                 max_turns: int = 100):
+                 max_turns: int = 100, environments_dir: str | None = None):
         self._game_ids = game_ids
         self.num_episodes = num_episodes
         self.max_turns = max_turns
         self._env_cache: dict = {}
+        self._environments_dir = environments_dir
 
     def _get_game_ids(self):
         if self._game_ids is not None:
             return self._game_ids
         from src.envs.arc_agi_env import create_arcade, get_available_game_ids
-        arc = create_arcade()
+        arc = create_arcade(environments_dir=self._environments_dir)
         ids = get_available_game_ids(arc)
         if not ids:
             ids = ["ls20", "ft09", "vc33"]
@@ -37,7 +38,7 @@ class ArcAGITask(TaskEnv):
         key = state["episode_key"]
         if key not in self._env_cache:
             from src.envs.arc_agi_env import create_arcade
-            arc = create_arcade()
+            arc = create_arcade(environments_dir=self._environments_dir)
             short_id = state["game_id"].split("-")[0]
             env = arc.make(short_id)
             if env is None:
@@ -52,7 +53,7 @@ class ArcAGITask(TaskEnv):
         episode_key = f"{game_id}_{idx}"
 
         from src.envs.arc_agi_env import create_arcade
-        arc = create_arcade()
+        arc = create_arcade(environments_dir=self._environments_dir)
         short_id = game_id.split("-")[0]
         env = arc.make(short_id)
         obs = env.reset()
@@ -184,3 +185,24 @@ class ArcAGITask(TaskEnv):
             f"Legend: {_CELL_CHARS}\n"
             f"Output: ACTION<N> (or ACTION6 X Y for click)"
         )
+
+
+import os as _os
+
+_community_base = _os.path.join(_os.path.dirname(__file__), "..", "..", "community_envs")
+
+
+@TaskRegistry.register("arc_agi_witness")
+class ArcAGIWitnessTask(ArcAGITask):
+    def __init__(self, num_episodes: int = 500, max_turns: int = 100):
+        witness_dir = _os.path.join(_community_base, "witness", "environment_files")
+        super().__init__(num_episodes=num_episodes, max_turns=max_turns,
+                         environments_dir=witness_dir if _os.path.isdir(witness_dir) else None)
+
+
+@TaskRegistry.register("arc_agi_community")
+class ArcAGICommunityTask(ArcAGITask):
+    def __init__(self, num_episodes: int = 500, max_turns: int = 100):
+        community_dir = _os.path.join(_community_base, "arc_interactive", "environment_files")
+        super().__init__(num_episodes=num_episodes, max_turns=max_turns,
+                         environments_dir=community_dir if _os.path.isdir(community_dir) else None)

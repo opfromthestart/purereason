@@ -11,3 +11,4 @@ from src.tasks.sat_task import SATCounterfactualTask  # noqa
 from src.tasks.graph_task import GraphWalkTask  # noqa
 from src.tasks.blue_prince_task import BluePrinceTask  # noqa
 from src.tasks.arc_agi_task import ArcAGITask  # noqa
+from src.tasks.arc_agi_one_task import ArcAGIOneTask, ArcAGITwoTask  # noqa

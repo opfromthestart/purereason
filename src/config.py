@@ -60,6 +60,10 @@ class TaskSamplingConfig:
         "graph_walk": 0.10,
         "blue_prince": 0.10,
         "arc_agi": 0.05,
+        "arc_agi_one": 0.10,
+        "arc_agi_two": 0.10,
+        "arc_agi_witness": 0.05,
+        "arc_agi_community": 0.05,
     })
     max_samples_per_task: int = 2000
 
@@ -122,6 +126,10 @@ def colab_config() -> Config:
                 "graph_walk": 0.10,
                 "blue_prince": 0.10,
                 "arc_agi": 0.05,
+                "arc_agi_one": 0.10,
+                "arc_agi_two": 0.10,
+                "arc_agi_witness": 0.05,
+                "arc_agi_community": 0.05,
             },
             max_samples_per_task=2000,
         ),
