@@ -6,6 +6,7 @@ from datasets import Dataset
 
 class TaskEnv(ABC):
     name: str
+    is_interactive: bool = False
 
     @abstractmethod
     def load_dataset(self) -> Dataset:
@@ -18,6 +19,18 @@ class TaskEnv(ABC):
     @abstractmethod
     def compute_reward(self, prompt: str, completion: str) -> float:
         ...
+
+    def get_initial_state(self, idx: int) -> dict:
+        raise NotImplementedError
+
+    def get_initial_prompt(self, state: dict) -> str:
+        raise NotImplementedError
+
+    def process_action(self, state: dict, action_text: str) -> dict:
+        raise NotImplementedError
+
+    def compute_episode_reward(self, final_state: dict) -> float:
+        raise NotImplementedError
 
 
 class TaskRegistry:

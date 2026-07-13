@@ -19,6 +19,8 @@ def _remap_prompt_keys(unused, old_to_new: dict[str, str]):
         ("src.tasks.sokoban_task", ["_sokoban_puzzles"]),
         ("src.tasks.spreadsheet_task", ["_spreadsheet_puzzles"]),
         ("src.tasks.lean_task", ["_lean_lookup"]),
+        ("src.tasks.knights_knaves_task", ["_knights_knaves_refs"]),
+        ("src.tasks.block_world_task", ["_block_world_puzzles"]),
     ]
     for mod_name, attr_names in to_remap:
         try:
@@ -40,6 +42,8 @@ def build_mixed_dataset(config: TaskSamplingConfig, tokenizer=None) -> Dataset:
             task = TaskRegistry.get(task_name)
         except KeyError:
             print(f"[WARN] Task '{task_name}' not registered, skipping")
+            continue
+        if task.is_interactive:
             continue
         ds = task.load_dataset()
         n = min(len(ds), config.max_samples_per_task)

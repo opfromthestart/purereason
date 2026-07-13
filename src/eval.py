@@ -50,7 +50,13 @@ def main():
     import src.tasks.logic_task       # noqa
     import src.tasks.sokoban_task     # noqa
     import src.tasks.spreadsheet_task # noqa
-    import src.tasks.lean_task        # noqa
+    import src.tasks.lean_task                # noqa
+    import src.tasks.knights_knaves_task  # noqa
+    import src.tasks.block_world_task         # noqa
+    import src.tasks.cryptid_task         # noqa
+    import src.tasks.sat_task            # noqa
+    import src.tasks.graph_task         # noqa
+    import src.tasks.blue_prince_task   # noqa
 
     model, tokenizer = load_model_and_tokenizer(config.model)
 
