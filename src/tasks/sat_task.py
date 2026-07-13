@@ -102,8 +102,9 @@ class SATCounterfactualTask(TaskEnv):
 
             if is_counterfactual:
                 obs = (f"Correct! Assignment {_format_assignment(assignment)} "
-                       "satisfies the actual formula but not the given formula.")
-                return {"observation": obs, "reward": 1.0, "done": True, "state": new_state}
+                        "satisfies the actual formula but not the given formula.")
+                actions_taken = state["turn"] + 1
+                return {"observation": obs, "reward": 1.0 / max(1, actions_taken), "done": True, "state": new_state}
             else:
                 obs = (f"Assignment {_format_assignment(assignment)} is NOT counterfactual. "
                        "It either satisfies both formulas or neither.")

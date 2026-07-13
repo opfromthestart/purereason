@@ -135,7 +135,7 @@ class SokobanInteractiveTask(TaskEnv):
         reward = max(0.0, progress * 0.1)
 
         if done:
-            reward = 1.0
+            reward = 1.0 / max(1, new_state["moves_taken"])
             observation = f"Move {move}:\n{new_board}\n\nALL BOXES ON TARGETS! You win!"
         elif new_state["moves_taken"] >= self.max_moves:
             done = True
@@ -153,7 +153,9 @@ class SokobanInteractiveTask(TaskEnv):
         }
 
     def compute_episode_reward(self, final_state: dict) -> float:
-        return 1.0 if final_state["boxes_on_target"] >= self.num_boxes else 0.0
+        if final_state["boxes_on_target"] < self.num_boxes:
+            return 0.0
+        return 1.0 / max(1, final_state.get("moves_taken", 1))
 
     def _extract_move(self, text: str) -> str | None:
         for ch in text.strip().upper():

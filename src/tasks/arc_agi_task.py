@@ -91,7 +91,7 @@ class ArcAGITask(TaskEnv):
 
         if current_state in (GameState.WIN, GameState.GAME_OVER):
             done = True
-            reward = 1.0 if current_state == GameState.WIN else 0.0
+            reward = (1.0 / max(1, s["turn"] + 1)) if current_state == GameState.WIN else 0.0
             new_state = {**s, "turn": s["turn"] + 1, "done": True}
             cells = s["cells"]
             grid = ArcAGIGrid(cells=cells, available_actions=s["available_actions"]) if cells is not None else None
@@ -127,7 +127,7 @@ class ArcAGITask(TaskEnv):
         levels_gained = max(0, new_levels - s["last_levels"])
 
         if gs == GameState.WIN:
-            reward = 1.0
+            reward = 1.0 / max(1, s["turn"] + 1)
         elif levels_gained > 0:
             reward = 0.1 * levels_gained
         else:
@@ -162,8 +162,9 @@ class ArcAGITask(TaskEnv):
     def compute_episode_reward(self, final_state: dict) -> float:
         from arcengine import GameState
         gs = GameState(final_state.get("game_state", "NOT_FINISHED"))
+        turn = final_state.get("turn", 1)
         if gs == GameState.WIN:
-            return 1.0
+            return 1.0 / max(1, turn)
         levels = final_state.get("levels_completed", 0)
         if levels > 0:
             return 0.1 * levels

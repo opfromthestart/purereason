@@ -255,7 +255,7 @@ class BlockWorldInteractiveTask(TaskEnv):
         observation = f"Result:\n{env.render()}\n\nGoal:\n{env.render_goal()}"
 
         if done:
-            reward = 1.0
+            reward = 1.0 / max(1, new_state["steps_taken"])
         elif new_state["steps_taken"] >= self.max_steps:
             done = True
             reward = 0.0
@@ -280,7 +280,9 @@ class BlockWorldInteractiveTask(TaskEnv):
 
     def compute_episode_reward(self, final_state: dict) -> float:
         env = self._env_from_state(final_state)
-        return 1.0 if env._is_goal() else 0.0
+        if not env._is_goal():
+            return 0.0
+        return 1.0 / max(1, final_state.get("steps_taken", 1))
 
     def _env_from_state(self, state: dict) -> BlockWorldEnv:
         env = BlockWorldEnv(num_blocks=state["num_blocks"], seed=state["seed"])

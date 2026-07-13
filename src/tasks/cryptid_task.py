@@ -181,9 +181,10 @@ class CryptidTask(TaskEnv):
                 new_state["game_over"] = True
                 obs = f"SEARCH ({sx},{sy}) - ALL YES! You found the habitat!\n\n"
                 obs += self._render_game_state(new_state, "GAME WON")
+                actions_taken = turn + 1
                 return {
                     "observation": obs,
-                    "reward": 1.0,
+                    "reward": 1.0 / max(1, actions_taken),
                     "done": True,
                     "state": new_state,
                 }
@@ -220,7 +221,9 @@ class CryptidTask(TaskEnv):
         }
 
     def compute_episode_reward(self, final_state: dict) -> float:
-        return 1.0 if final_state.get("game_over", False) else 0.0
+        if not final_state.get("game_over", False):
+            return 0.0
+        return 1.0 / max(1, final_state.get("turn", 1))
 
     def _render_game_state(self, state: dict, header: str) -> str:
         board = state["board"]
