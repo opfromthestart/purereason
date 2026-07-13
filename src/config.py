@@ -59,6 +59,7 @@ class TaskSamplingConfig:
         "sat_counterfactual": 0.05,
         "graph_walk": 0.10,
         "blue_prince": 0.10,
+        "arc_agi": 0.05,
     })
     max_samples_per_task: int = 2000
 
@@ -120,6 +121,7 @@ def colab_config() -> Config:
                 "sat_counterfactual": 0.05,
                 "graph_walk": 0.10,
                 "blue_prince": 0.10,
+                "arc_agi": 0.05,
             },
             max_samples_per_task=2000,
         ),

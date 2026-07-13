@@ -93,6 +93,7 @@ def main():
     import src.tasks.sat_task            # noqa
     import src.tasks.graph_task         # noqa
     import src.tasks.blue_prince_task   # noqa
+    import src.tasks.arc_agi_task       # noqa
 
     os.makedirs(config.training.output_dir, exist_ok=True)
 

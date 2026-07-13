@@ -57,6 +57,7 @@ def main():
     import src.tasks.sat_task            # noqa
     import src.tasks.graph_task         # noqa
     import src.tasks.blue_prince_task   # noqa
+    import src.tasks.arc_agi_task       # noqa
 
     model, tokenizer = load_model_and_tokenizer(config.model)
 
