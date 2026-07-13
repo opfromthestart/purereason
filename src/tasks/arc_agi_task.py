@@ -129,7 +129,7 @@ class ArcAGITask(TaskEnv):
         if gs == GameState.WIN:
             reward = 1.0 / max(1, s["turn"] + 1)
         elif levels_gained > 0:
-            reward = 0.1 * levels_gained
+            reward = levels_gained / max(1, s["turn"] + 1)
         else:
             reward = 0.0
 
@@ -167,7 +167,7 @@ class ArcAGITask(TaskEnv):
             return 1.0 / max(1, turn)
         levels = final_state.get("levels_completed", 0)
         if levels > 0:
-            return 0.1 * levels
+            return levels / max(1, turn)
         return 0.0
 
     def _status_lines(self, state: dict) -> str:
